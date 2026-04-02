@@ -13,8 +13,5 @@ on:
 jobs:
   test:
     runs-on: self-hosted
-    permissions:
-      contents: write
-      issues: write
     steps:
       - run: echo "issue=${{ inputs.issue_number }} repo=${{ inputs.repository }}"
