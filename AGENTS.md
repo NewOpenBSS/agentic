@@ -10,11 +10,14 @@ It is language-agnostic and reusable across projects.
 At the start of every session, read these sources in order before doing anything else:
 
 1. `docs/PROJECT_BRIEF.md` — what the agentic system is and how it works
-2. Query open Requirement issues in the agentic repo:
+2. Read `DOMAINS.md`. For each domain with status `active`, check whether `domains/<name>/`
+   exists locally. If any are missing, list them and ask the user whether to clone them
+   before proceeding. Clone command: `git clone <repo> domains/<name>`
+3. Query open Requirement issues in the agentic repo:
    `gh issue list --repo <agentic-repo> --label requirement --state open --json number,title,labels`
-3. For domain sessions — query open Feature issues in the domain repo:
+4. For domain sessions — query open Feature issues in the domain repo:
    `gh issue list --label feature --state open --json number,title,labels,body`
-4. Read the relevant standards file from `standards/` for the domain language
+5. Read the relevant standards file from `standards/` for the domain language
    (e.g. `standards/go.md` for Go domains)
 
 Do not skip any step. Do not begin work until all steps are complete.

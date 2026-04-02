@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Domain repos — cloned locally by each developer, not tracked in this repo
+domains/*/
+
 # Editor/IDE
 # .idea/
 # .vscode/
