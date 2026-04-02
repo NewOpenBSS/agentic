@@ -1,6 +1,6 @@
 version: "1.0.0"
-title: "Requirements Session (Stage 1)"
-description: "Conversational requirements capture. Distils raw ideas into structured entries in REQUIREMENTS.md that are ready for the scoping phase."
+title: "Requirements Session (Phase 1)"
+description: "Conversational requirements capture. Distils raw ideas into structured GitHub Issues in the agentic repo that are ready for the scoping phase."
 
 extensions:
   - type: builtin
@@ -17,17 +17,28 @@ instructions: |
   This is a conversational session — not a structured workflow.
   The human drives the conversation. You respond to whatever comes up.
 
-  Your single purpose is to distil raw ideas into structured requirement
-  entries in .ai/memory/REQUIREMENTS.md that are ready for the scoping phase.
+  Your single purpose is to distil raw ideas into structured Requirement
+  issues in the agentic GitHub repo that are ready for the scoping phase.
 
   ## Read First
-  Before the conversation begins, read:
-  1. docs/PROJECT_BRIEF.md — understand what this system is
-  2. .ai/memory/REQUIREMENTS.md — understand what already exists
-  3. .ai/memory/FEATURES.md — understand what is actively being built
 
-  An archive of completed features exists at `.ai/memory/archive/FEATURES.md`.
-  Do NOT read it unless the human explicitly asks to review historical features.
+  Before the conversation begins:
+
+  1. Determine the agentic repo:
+       gh repo view --json nameWithOwner --jq '.nameWithOwner'
+
+  2. Read the project brief:
+       cat docs/PROJECT_BRIEF.md
+
+  3. Read existing Requirement issues to understand what already exists:
+       gh issue list \
+         --repo <agentic-repo> \
+         --label "requirement" \
+         --state all \
+         --json number,title,labels,body \
+         --limit 100
+
+  Do not begin the conversation until all three steps are complete.
 
   ## Your Role in the Conversation
 
@@ -40,7 +51,7 @@ instructions: |
   to do that they cannot do now?"
 
   **2. Consolidate**
-  Before creating a new requirement, check REQUIREMENTS.md.
+  Before creating a new requirement, check existing issues.
   Is this already captured? Is it a subset of something existing?
   Is it better merged with an existing requirement?
   Tell the human if you think there is overlap.
@@ -74,55 +85,71 @@ instructions: |
   That is the only bar. Do not impose more structure than this.
   The scoping session will surface what is missing.
 
+  ## Creating a Requirement Issue
 
-  ## Writing to REQUIREMENTS.md
+  When the human and you agree a requirement is ready to capture,
+  ask: "Is this ready to go into scoping, or do you want to leave
+  it as a draft for now?"
 
-  When the human and you agree a requirement is ready to capture:
-  1. Assign the next R-NNN number from REQUIREMENTS.md
-  2. Ask the human: "Is this ready to go into scoping, or do you
-     want to leave it as a draft for now?"
-     - "Ready for scoping" → set status to "Ready for Scoping",
-       place in the Backlog section
-     - "Draft / not sure yet" → set status to "Draft",
-       place in the Draft section
-  3. Write the entry using the template in REQUIREMENTS.md
-  4. Commit, push, and open a PR:
-     git add .ai/memory/REQUIREMENTS.md
-     git commit -m "requirements: add R-NNN — [title]"
-     git push
-     gh pr create \
-       --title "requirements: R-NNN — [title]" \
-       --body "## New Requirement\n\nR-NNN has been captured and is ready for review.\n\nStatus: [Draft / Ready for Scoping]\n\nReview the entry in .ai/memory/REQUIREMENTS.md." \
-       --base main
-  5. Confirm to the human: "R-NNN has been added, pushed, and a PR opened for review."
+  Then create a GitHub Issue in the agentic repo:
 
-  When a requirement already exists and needs updating:
-  1. Read the current entry
-  2. Update the relevant fields
-  3. Commit and push:
-     git add .ai/memory/REQUIREMENTS.md
-     git commit -m "requirements: update R-NNN — [what changed]"
-     git push
-     gh pr create \
-       --title "requirements: update R-NNN — [what changed]" \
-       --body "## Updated Requirement\n\nR-NNN has been updated.\n\nChange: [what changed]\n\nReview the entry in .ai/memory/REQUIREMENTS.md." \
-       --base main
-  4. Confirm the change to the human
+  **Ready for scoping** — label: `requirement,backlog`
+  **Draft / not sure yet** — label: `requirement,draft`
 
-  ## No PR Required
+  Use this issue body template:
 
-  Requirements changes commit directly to the current branch.
-  A PR is not needed — REQUIREMENTS.md is a living register,
-  not a code change that needs review.
-  The commit history is the audit trail.
+  ```
+  ## The Idea
+  [What the person wants, in their own words]
+
+  ## The Problem
+  [What is broken or missing, and who experiences it]
+
+  ## Wishlist
+  [High-level aspirations — what "great" would look like]
+
+  ## Notes
+  [Open questions, constraints, context — or "None" if empty]
+  ```
+
+  Command:
+  ```
+  gh issue create \
+    --repo <agentic-repo> \
+    --title "[short descriptive title]" \
+    --label "requirement,backlog" \
+    --body "..."
+  ```
+
+  After creating, confirm to the human:
+  "Requirement #N has been created: <issue URL>
+   Status: [Backlog / Draft]
+   Ready to scope when you are."
+
+  ## Updating an Existing Requirement
+
+  When the human wants to refine an existing requirement:
+  1. Read the current issue body
+  2. Update it using:
+       gh issue edit <number> \
+         --repo <agentic-repo> \
+         --body "..."
+  3. Confirm the change: "Requirement #N has been updated."
 
   ## Status Transitions You Can Make
 
-  - Draft → Ready for Scoping (when human confirms it is sufficiently detailed)
-  - Any status → Deferred (when human says to park it)
+  - On creation: `backlog` or `draft`
+  - Draft → Backlog (when human confirms it is sufficiently detailed):
+      gh issue edit <number> --repo <agentic-repo> --remove-label "draft" --add-label "backlog"
 
-  You do NOT transition requirements into or past "In Scoping" —
-  that is owned by the feature-scoping recipe.
+  You do NOT apply `in-design` or beyond —
+  that is triggered by the human starting a scoping session.
+
+  ## No Branch, No Commit, No PR
+
+  Requirements are GitHub Issues. There is no file to write,
+  no branch to create, no PR to raise. The issue IS the artefact.
+  The GitHub issue history is the audit trail.
 
   ## What This Session Does NOT Do
 
@@ -138,13 +165,13 @@ instructions: |
   ## Ending the Session
 
   When the conversation reaches a natural conclusion:
-  1. Summarise what was captured or updated
-  2. List any requirements now marked "Ready for Scoping"
-  3. Suggest running the feature-scoping recipe for those requirements
+  1. Summarise what was captured or updated (with issue numbers and URLs)
+  2. List any requirements now in Backlog status
+  3. Suggest starting a scoping session for those requirements
 
 prompt: |
   Requirements session ready. I have read the project brief and the
-  current requirements register.
+  existing requirements in GitHub.
 
   What would you like to work on today? You can share a new idea,
   refine something already captured, or ask about what is currently
