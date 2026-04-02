@@ -84,55 +84,85 @@ instructions: |
      List the domain repos in the org if helpful:
        gh repo list <org> --json name,description --limit 20
 
-  ## The Seven Artefacts (work through these in order)
+  ## The Eight Artefacts (work through these in order)
 
-  ### Artefact 1 — Raw Idea
+  ### Artefact 1 — User Story
+
+  This is the foundation. Everything else flows from it.
+
+  Ask: "Who is the primary actor — the person or system that directly uses
+  or benefits from this feature?"
+  Prompt if the human is stuck: developer, end-user, operator, external
+  system, compliance officer, billing engine...
+
+  Ask: "In one sentence — what do they want to accomplish? Not how — what
+  outcome. What changes for them when this is delivered?"
+
+  Ask: "What value does it deliver? What can they do that they could not
+  before, or what pain goes away?"
+
+  Synthesise into the classic story form and read it back:
+  "As a [actor], I want [capability], so that [benefit]."
+
+  Challenges to apply before accepting the story:
+  - If "I want" describes a technical solution rather than an outcome — push
+    back. "I want a JWT claim" is a solution. "I want my permissions enforced
+    without writing boilerplate in every handler" is an outcome.
+  - If the story contains "and" in the capability — it is two stories and
+    likely two Features. Split them.
+  - If there are two distinct actors with different needs — they are two
+    stories. Decide which to scope now and park the other.
+
+  Only proceed when the human confirms: "Yes, that captures it."
+
+  ### Artefact 2 — Raw Idea
   Restate the requirement in one sentence. Ask: "Is that a fair summary?"
 
-  ### Artefact 2 — Problem Statement
+  ### Artefact 3 — Problem Statement
   Ask: "What is broken, missing, or painful — and who experiences it?"
   Do not accept a solution as the answer.
 
-  ### Artefact 3 — Feature Definition
+  ### Artefact 4 — Feature Definition
   Ask: "What capability, when delivered, resolves this problem?"
   Goal must be a single sentence. If it contains "and" — it is two Features.
   Give the Feature a working title for the conversation.
   The issue number will be assigned by GitHub on creation.
 
-  ### Artefact 4 — MVP Scope
+  ### Artefact 5 — MVP Scope
   Ask: "What is the minimum version that delivers real value?"
   Challenge: "If we removed X, would the core problem still be solved?"
 
-  ### Artefact 5 — Acceptance Criteria + Constraints
+  ### Artefact 6 — Acceptance Criteria + Constraints
   Ask: "How will we know the implementation is correct?"
   Apply solution bias test to every criterion. Convert solution criteria to
   outcome criteria. If human insists on a how — record as a constraint.
 
-  ### Artefact 5b — Feature Switch
+  ### Artefact 6b — Feature Switch
   For every Feature that changes user-visible behaviour, ask:
   "Does this feature need to be hidden behind a feature switch?"
   Record the switch name (lowercase_underscore) or "None".
   If switch infrastructure does not exist — flag as a prerequisite.
 
-  ### Artefact 5c — Implementation Approval
+  ### Artefact 6c — Implementation Approval
   Ask: "Should implementation proceed automatically after design,
   or do you want to review the task breakdown first?"
   - Yes, review first → note "Implementation Approval Required" in the issue
   - No, proceed automatically → note "Proceed automatically" in the issue
 
-  ### Artefact 6 — Parking Lot
+  ### Artefact 7 — Parking Lot
   Capture out-of-scope ideas throughout. Review at end:
   "Should any of these become the next Feature?"
 
-  ### Artefact 7 — Feature Issue
+  ### Artefact 8 — Feature Issue
   Synthesise all artefacts into the issue body below.
   Present for human approval before creating.
 
-  ## The Two-Question Checkpoint
-  1. "Can I implement this without inventing any requirements?"
-  2. "Would you recognise the correct implementation when you see it in a PR?"
+  ## The Three-Question Checkpoint
+  1. "Does the story name a real actor and a concrete outcome (not a solution)?"
+  2. "Can I implement this without inventing any requirements?"
+  3. "Would you recognise the correct implementation when you see it in a PR?"
 
-  If yes to both — proceed to create the issue. Otherwise return to the
+  If yes to all three — proceed to create the issue. Otherwise return to the
   failing artefact.
 
   ## Creating the Feature Issue
@@ -140,6 +170,9 @@ instructions: |
   Create the Feature Issue in the domain repo with this body template:
 
   ```
+  ## Story
+  As a [actor], I want [capability], so that [benefit].
+
   **Requirement:** <agentic-repo>#<requirement-number>
 
   ## Goal
