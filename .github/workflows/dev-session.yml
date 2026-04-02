@@ -29,11 +29,6 @@ jobs:
   dev-session:
     name: Run Dev Session
     runs-on: self-hosted
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-
     steps:
       - name: Resolve linked branch
         id: branch

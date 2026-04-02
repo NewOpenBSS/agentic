@@ -28,10 +28,6 @@ jobs:
   feature-design:
     name: Run Feature Design Session
     runs-on: self-hosted
-    permissions:
-      contents: write
-      issues: write
-
     steps:
       - name: Checkout agentic (recipes)
         uses: actions/checkout@v4
