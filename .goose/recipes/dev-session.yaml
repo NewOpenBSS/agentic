@@ -1,0 +1,76 @@
+version: "1.0.0"
+title: "Dev Session (Stage 4)"
+description: "Stage 4 — Development. Processes the task queue sequentially on the feature branch. Commits each task. Workflow handles push and PR."
+
+parameters:
+  - key: branch_name
+    input_type: string
+    requirement: required
+    description: "Feature branch to implement (e.g. feature/F-001-charging-trace)"
+
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    timeout: 600
+    bundled: true
+
+settings:
+  max_turns: 200
+
+instructions: |
+  You are running a Dev Session — Stage 4 of the agentic development pipeline.
+  You process the task queue on the feature branch, implementing each task
+  in sequence. You commit after each task. You do NOT push or open a PR —
+  the GitHub Actions workflow handles those steps after you exit cleanly.
+
+  ## Step 1 — Verify Branch
+  git branch --show-current
+  If not on {{ branch_name }}:
+    git checkout {{ branch_name }} 2>/dev/null || \
+    git checkout -b {{ branch_name }} origin/{{ branch_name }}
+
+  ## Step 2 — Read Context
+  Complete Session Initialisation as defined in AGENTS.md.
+  Then verify:
+  - .ai/tasks/READY exists — if not, stop and report
+  - .ai/tasks/queue/ contains files — if empty, stop and report
+
+  ## Step 3 — Process the Task Queue
+  List all files in .ai/tasks/queue/ sorted numerically (001 before 002).
+  This is the implementation sequence. Do not change the order.
+
+  For EACH task file in sequence:
+
+  ### 3a — Read the task
+  Read the task file. Understand what must be built before touching any code.
+
+  ### 3b — Implement
+  Implement the task against its acceptance criteria.
+  Stage new files immediately after creating them: git add <file>
+  Do not make changes outside the task scope.
+
+
+  ### 3c — Build and test
+  Run the full build and test suite.
+  If build fails — diagnose and fix. Do not move to the next task with a broken build.
+  If tests fail — diagnose and fix. Do not move to the next task with failing tests.
+  If you cannot fix the failure — stop and exit with a clear error message.
+  The workflow will turn red. A human will investigate and re-trigger.
+
+  ### 3d — Commit the task
+  Follow the "After each task completes" steps in AGENTS.md (Memory and Task Lifecycle).
+  Proceed to the next task in the queue.
+
+  ## Step 4 — All Tasks Complete
+  When the queue is empty, follow the "When all tasks are complete" steps in AGENTS.md.
+  Exit cleanly with a success message listing what was built.
+  The workflow will now push and open the PR.
+
+  ## Rules
+  - If build or tests cannot be fixed — stop and exit with a clear error.
+    The workflow will turn red. A human will investigate and re-trigger.
+
+prompt: |
+  Dev session starting for {{ branch_name }}.
+  Verifying branch, reading context, then processing the task queue.
