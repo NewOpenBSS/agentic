@@ -1,80 +1,88 @@
 # AGENTS.md — Agent Protocol
 
-This file governs how AI agents behave in this repository.
+This file governs how AI agents behave in this repository and all domain repos.
 It is language-agnostic and reusable across projects.
 
 ---
 
 ## Session Initialisation
 
-At the start of every session, read these files in order before doing anything else:
+At the start of every session, read these sources in order before doing anything else:
 
-1. `docs/PROJECT_BRIEF.md` — what this system is and why it exists
-2. `docs/ARCHITECTURE.md` — system structure and boundaries
-3. `docs/PROJECT_STRUCTURE.md` — where things live and what each directory is for
-4. `.ai/memory/STATUS.md` — current implementation state and active focus
-5. `.ai/context/` — read ALL files in this directory. Each file contains standards
-   and conventions for a specific language or framework used in this project.
-   Apply rules from every file present.
+1. `docs/PROJECT_BRIEF.md` — what the agentic system is and how it works
+2. Query open Requirement issues in the agentic repo:
+   `gh issue list --repo <agentic-repo> --label requirement --state open --json number,title,labels`
+3. For domain sessions — query open Feature issues in the domain repo:
+   `gh issue list --label feature --state open --json number,title,labels,body`
+4. Read the relevant standards file from `standards/` for the domain language
+   (e.g. `standards/go.md` for Go domains)
 
-Do not skip any file. Do not begin work until all five steps are complete.
+Do not skip any step. Do not begin work until all steps are complete.
+
+There is no STATUS.md. Current state is derived from GitHub Issues.
 
 ---
 
 ## Session Types
 
-There are three distinct session types.
+### Requirements Session (Phase 1)
 
-### Preferred Execution Path
+Run interactively by a human. Captures business needs as Requirement issues
+in the agentic repo. No branch, no commit, no PR — the issue is the artefact.
 
-**The GitHub Actions workflow is the preferred way to run Feature Design Sessions and Dev
-Sessions.** It runs in the background, does not require the human's laptop to stay on, and
-provides a full audit trail via the commit and PR history.
+1. Read context (see Session Initialisation)
+2. Converse with the human to distil the requirement
+3. Create a GitHub Issue in the agentic repo with `requirement` + `backlog` or `draft` label
+4. Confirm the issue URL to the human
 
-**Never start a Feature Design Session or Dev Session in the foreground (interactive chat)
-without explicit human approval.** Before doing so, ask:
+### Scoping Session (Phase 2)
 
-> "This is a Feature Design / Dev Session. Should I run it here in the foreground, or trigger
-> it via the GitHub Actions workflow instead?"
+Run interactively by a human. Decomposes a Requirement into Feature issues
+in the relevant domain repo(s). No branch, no commit, no PR.
 
-The only exceptions where running in the foreground is appropriate without asking:
-- The human has explicitly requested it ("do it here", "run it now", "go for it in this chat")
-- The workflow has failed (turned red) and the human is using the interactive session to
-  investigate or recover — see **Foreground Recovery** below
+1. Read context (see Session Initialisation)
+2. Read the target Requirement issue in full
+3. Converse with the human to scope the Feature(s)
+4. Create Feature issue(s) in the domain repo with `feature` + `backlog` label
+5. Wire sub-issue relationship: Feature → parent Requirement (cross-repo)
+6. Add Feature to org Project, set Domain field
+7. When human confirms ready: apply `in-design` label → triggers Feature Design Session
 
----
+### Feature Design Session (Phase 3)
 
-### Feature Design Session
+Triggered automatically by GitHub Actions when a Feature issue is labelled `in-design`.
+Runs in the domain repo context. Decomposes the Feature into Task sub-issues.
 
-Triggered automatically by GitHub Actions when a feature branch is pushed.
-Runs on the feature branch. Decomposes the Feature into a numbered task queue.
-
-1. Read context files (see Session Initialisation above)
-2. Read the Feature definition from `.ai/memory/FEATURES.md`
+1. Read context (see Session Initialisation)
+2. Read the Feature issue spec in full
 3. Analyse the codebase to understand what exists and what must be built
-4. Write numbered task files to `.ai/tasks/queue/` — one file per task
-5. Write `.ai/tasks/READY` sentinel to trigger the Dev Session workflow
-6. Commit and push — do not open a PR
+4. Create Task sub-issues under the Feature issue (ordered by creation sequence)
+5. Create the feature branch: `feature/N-description` where N is the Feature issue number
+   — this auto-links the branch to the Feature issue
+6. Apply `in-development` label on the Feature issue → triggers Dev Session
+7. Exit cleanly — do not push files, do not open a PR
 
-### Dev Session
+### Dev Session (Phase 4)
 
-Triggered automatically by GitHub Actions when `.ai/tasks/READY` is pushed.
-Runs on the feature branch. Processes the task queue to completion.
+Triggered automatically by GitHub Actions when a Feature issue is labelled `in-development`.
+Runs on the feature branch in the domain repo. Processes Task sub-issues to completion.
 
-1. Read context files (see Session Initialisation above)
-2. Process `.ai/tasks/queue/` files in numerical order
-3. For each task: implement → build → test → commit → archive to `done/`
-4. If build or tests fail — stop and exit. Do not proceed to the next task.
-   The workflow turns red. A human investigates and re-triggers.
-5. When queue is empty — remove READY, update STATUS.md, exit cleanly
-6. Do NOT push or open a PR — the workflow handles this after clean exit
+1. Read context (see Session Initialisation)
+2. Query open Task sub-issues on the Feature issue, ordered by issue number
+3. For each Task:
+   - Implement the work described in the Task issue
+   - Build and test — if either fails, stop immediately and exit with error
+   - Commit: `feat: [task description] — task N of N (#feature-issue)`
+   - Close the Task issue: `gh issue close <task-number>`
+4. When all Tasks are closed — exit cleanly
+5. The workflow handles: push, PR creation with `Closes #N`, applying `in-review` label
 
 ### Interactive Session
 
 Run manually by a human, typically to investigate or recover from a workflow failure,
 or for exploration and manual work outside the automated pipeline.
 
-1. Read context files (see Session Initialisation above)
+1. Read context (see Session Initialisation)
 2. Confirm not on `main` before making any changes
 3. Follow the same build/test discipline as Dev Session
 
@@ -83,12 +91,13 @@ or for exploration and manual work outside the automated pipeline.
 When the GitHub Actions workflow fails (build red, tests failing, conflict), the human
 will open an Interactive Session to diagnose and fix. The following rules apply:
 
-- Read the failing task spec from `.ai/tasks/queue/` before touching any code
+- Query open Task sub-issues on the Feature issue before touching any code
 - Diagnose the root cause from the exact error output — do not guess
 - Fix only what is failing; do not expand scope or refactor surrounding code
-- After fixing: build, test, commit, and push — then re-trigger the workflow
-- Inform the human what was fixed and that the workflow has been re-triggered so they can monitor the run
-- If the automatic re-trigger (push) does not start the workflow, use `gh workflow run` to trigger it manually
+- After fixing: build, test, commit, close the Task issue, and push
+- Inform the human what was fixed
+- If the automatic re-trigger does not start the workflow, apply `in-development`
+  label again to re-trigger the Dev Session
 - If the fix requires a contract change or broad refactor, stop and raise it before proceeding
 
 ---
@@ -104,10 +113,12 @@ One branch per Feature. Tasks are commits on that branch, not separate branches.
 - Never merge pull requests — leave that for human review
 - **Always use `git mv` to rename or move tracked files** — never OS-level `mv`
 - **Stage new files immediately** using `git add <file>` after creating them
-- Branch names reflect the Feature: `feature/F-001-charging-trace`
-- Commit messages per task: `feat: [task description] — task N of N (F-NNN)`
-- PR description: what the Feature delivers, packages affected, risks, testing summary
+- Branch names: `feature/N-description` where N is the Feature issue number
+- Commit messages per task: `feat: [task description] — task N of N (#N)`
+- PR title: `feat: [Feature issue title]`
+- PR body: `Closes #N` where N is the Feature issue number
 
+---
 
 ## Testing — Universal Rules
 
@@ -118,7 +129,7 @@ One branch per Feature. Tasks are commits on that branch, not separate branches.
 - Never claim a task complete with failing tests
 - Fix failing tests before moving to the next step
 - Unit tests must not require external services — isolate infrastructure dependencies
-- See the relevant file in `.ai/context/` for language-specific test commands,
+- See the relevant file in `standards/` for language-specific test commands,
   frameworks, naming conventions, and patterns
 
 ---
@@ -127,7 +138,7 @@ One branch per Feature. Tasks are commits on that branch, not separate branches.
 
 - The build must pass cleanly before claiming a task complete
 - Report exact command output on any failure — diagnose before retrying
-- See the relevant file in `.ai/context/` for language-specific build commands
+- See the relevant file in `standards/` for language-specific build commands
 
 ---
 
@@ -169,52 +180,36 @@ without approval is always a breaking change risk.
 
 **Kafka event schemas** — any struct that is serialised and published to a Kafka
 topic, or deserialised from a Kafka topic. These are consumed by other services
-(Java or otherwise) that you cannot see. The schema is defined by the upstream
-publisher — the consuming service must accept what it receives, not invent fields
-that the publisher does not send.
-
-Examples in this repo: `internal/events/`
+that you cannot see. The schema is defined by the upstream publisher — the
+consuming service must accept what it receives, not invent fields.
 
 **Database-serialised structs** — any struct that is marshalled into a database
-column (e.g. as JSON or JSONB). The database is a shared resource — other
-applications (Java services, reporting tools, migrations) may read those columns
-directly. The column layout is a contract with every reader.
-
-Examples in this repo: quota structures stored as JSONB in the quota table.
+column (e.g. as JSON or JSONB). Other applications may read those columns directly.
 
 **GraphQL schema** — any type, field, query, mutation, or subscription exposed via
 the GraphQL API. External clients depend on these names and shapes.
 
-**Store query interfaces** — the `sqlc`-generated query interfaces in
-`internal/store/sqlc/`. These are generated from SQL — modify the SQL, not the Go.
+**Store query interfaces** — sqlc-generated query interfaces. Modify the SQL, not the Go.
 
 ### Rules
 
 1. **Never add, remove, or rename fields** on a contract struct without explicit
-   human approval. Adding a field is not "safe" — it may break deserialisation in
-   consumers that use strict parsing.
+   human approval.
 
-2. **Never invent fields** that the upstream publisher does not send. If a field
-   does not exist in the upstream schema, do not add it to the consuming struct.
-   The classic example: adding an internal ID (e.g. `counterId`) to a provisioning
-   event that originates from an external system. That system has no knowledge of
-   internal identifiers.
+2. **Never invent fields** that the upstream publisher does not send.
 
-3. **Internal IDs belong in internal structs**, not in contracts. If a domain
-   entity needs an ID for internal use, generate it inside the service layer after
-   consuming the event — do not add it to the event struct itself.
+3. **Internal IDs belong in internal structs**, not in contracts.
 
-4. **When in doubt, ask.** If a task requires changing a contract to proceed,
-   stop and raise it with the human before making any change.
+4. **When in doubt, ask.** Stop and raise it with the human before making any change.
 
-5. **Document the reason** for any approved contract change in DECISIONS.md with
-   an ADR, including which consumers were checked and what the migration plan is.
+5. **Document the reason** for any approved contract change in `DECISIONS.md`
+   with an ADR, including which consumers were checked and what the migration plan is.
 
 ---
 
 ## Communication
 
-- Explain what changed, referencing specific files and packages
+- Explain what changed, referencing specific files, packages, and issue numbers
 - Explain reasoning behind design decisions
 - Explicitly highlight risks for changes touching critical business logic
 - State clearly when a verification step could not be performed
@@ -222,19 +217,16 @@ the GraphQL API. External clients depend on these names and shapes.
 
 ---
 
-## Memory and Task Lifecycle
+## Task Lifecycle
 
 **After each task completes (before moving to the next):**
-1. Update `.ai/memory/STATUS.md` — reflect what was built
-2. Append significant decisions to `.ai/memory/DECISIONS.md` in ADR format
-3. Archive the task: `git mv .ai/tasks/queue/NNN-name.md .ai/tasks/done/NNN-name.md`
-4. Commit: `git add -A && git commit -m "feat: [description] — task N of N (F-NNN)"`
+1. Append significant decisions to `DECISIONS.md` in ADR format (if applicable)
+2. Close the Task issue: `gh issue close <task-number> --repo <domain-repo>`
+3. Commit: `feat: [task description] — task N of N (#feature-issue)`
 
 **When all tasks are complete:**
-1. Remove `.ai/tasks/READY` — `git rm .ai/tasks/READY`
-2. Update `.ai/memory/FEATURES.md` — set Feature status to "In Review"
-3. Final commit: `git add -A && git commit -m "feat: F-NNN complete — all tasks implemented"`
-4. Exit cleanly — the workflow pushes and opens the PR
+1. Exit cleanly — do not push, do not open a PR
+2. The workflow pushes and opens the PR automatically
 
 **ADR format for DECISIONS.md:**
 ```
@@ -245,4 +237,3 @@ the GraphQL API. External clients depend on these names and shapes.
 **Rationale:** Why
 **Consequences:** What this means going forward
 ```
-

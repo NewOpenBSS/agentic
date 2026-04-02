@@ -1,110 +1,89 @@
-# Project Briefing: go-ocs
+# Project Brief: Agentic Repo
 
-## Project Purpose
-The `go-ocs` project implements a charging platform for telecommunications billing systems, specifically designed for Online Charging System (OCS) functionality. It handles real-time charging, rating, quota management, and accounting for voice, data, and messaging services.
+## Purpose
 
-## Architecture Overview
-This is a **domain-driven Go application** with a layered architecture:
-- **Transport Layer**: HTTP API endpoints (using chi router)
-- **Business Logic Layer**: Charging engine with step-based processing
-- **Domain Layer**: Quota management, rating, and charge calculations
-- **Persistence Layer**: SQL database access via pgx
-- **Event Layer**: Kafka integration for event streaming
+This is the **Agentic repo** — the control plane for an AI-driven software
+development lifecycle (SDLC) process applied across all domain repos in the
+NewOpenBSS GitHub organisation.
 
-## Package Map
+It owns the process, not the code. Domain repos own the code.
 
-### Core Packages
-- **`internal/chargeengine`**: Main charging logic, HTTP handlers, and processing pipeline
-- **`internal/charging`**: Domain models (RateKey, UnitType) for charging data
-- **`internal/quota`**: Quota management system with reservation, debit, and release operations
-- **`internal/ruleevaluator`**: Policy rule evaluation engine
-- **`internal/store`**: Database repository pattern implementation
+## What This Repo Contains
 
-### Infrastructure Packages  
-- **`internal/appl`**: Application lifecycle management
-- **`internal/baseconfig`**: Configuration loading
-- **`internal/events`**: Kafka event producer
-- **`internal/logging`**: Structured logging
-- **`internal/nchf`**: 3GPP NCHF protocol models
-- **`internal/diameter`**: Diameter protocol support
+| Directory | Purpose |
+|---|---|
+| `AGENTS.md` | Agent session protocol — governs all AI agent behaviour |
+| `.goose/recipes/` | Goose recipes for each session phase |
+| `.github/workflows/` | Reusable GitHub Actions workflows (called by domain repos) |
+| `standards/` | Language and framework coding standards (Go, Java, etc.) |
+| `docs/` | Process and architecture documentation |
+| `design/` | Design decisions and proposals |
 
-### Database
-- **`db/migrations`**: SQL migration scripts (PostgreSQL)
-- **`db/seeds`**: Test data seeding
+## What This Repo Does NOT Contain
 
-## Key Components
+- Application code — that lives in domain repos
+- Feature or Task issues — those live in domain repos
+- Domain-specific architecture — that lives in each domain repo
 
-### Charging Pipeline
-The application processes charging requests through a step-based pipeline:
-1. **Authenticate**: Validate subscriber and carrier
-2. **Classify**: Determine service type and rating plan
-3. **Rate**: Calculate costs and apply tariffs
-4. **Account**: Debit quota and record transactions
-5. **Process Charge Record**: Create audit trail
+## The Process
 
-### Quota Management
-Comprehensive quota system with:
-- **Reservation**: Pre-allocate units with validity periods
-- **Debit**: Consume used units with reclaim logic
-- **Release**: Return unused quota
-- **Tax calculation**: Built-in tax support
+The agentic SDLC process has four phases:
 
-### Event Sourcing
-- Kafka integration for charge records
-- Quota journal events
-- Notification events
+**Phase 1 — Requirements Session (interactive)**
+A human runs the requirements recipe conversationally. Raw ideas are
+distilled into Requirement GitHub Issues in this repo. Requirements are
+domain-agnostic — they describe business needs, not solutions.
 
-## Entry Points
+**Phase 2 — Scoping Session (interactive)**
+A human runs the scoping recipe for a specific Requirement. The session
+decomposes it into one or more Feature Issues in the relevant domain repo(s).
+Features are domain-specific — each belongs to exactly one domain repo.
 
-### Applications
-1. **Charging Engine** (`cmd/charging-engine/main.go`):
-   - HTTP server at `:8080`
-   - NCHF charging API endpoints
-   - Kafka producer for events
+**Phase 3 — Feature Design Session (automated)**
+Triggered automatically when a Feature issue is labelled `in-design`.
+The recipe analyses the codebase, decomposes the Feature into ordered
+Task sub-issues, creates the feature branch, and applies `in-development`.
 
-2. **DRA Server** (`cmd/charging-dra/main.go`):
-   - Diameter protocol support
-   - Rate limiting for wholesalers
+**Phase 4 — Dev Session (automated)**
+Triggered automatically when a Feature issue is labelled `in-development`.
+The recipe processes Task sub-issues in order: implement → build → test →
+commit → close task → next. Opens a PR when all tasks are done.
 
-## External Integrations
+## GitHub Issue Hierarchy
 
-### Required Services
-- **PostgreSQL**: Primary data store (connection string in config)
-- **Kafka**: Event streaming (brokers configured in YAML)
-- **Prometheus**: Metrics endpoint (`:9090/metrics`)
+```
+agentic repo: Requirement   (domain-agnostic business need)
+  └── domain repo: Feature  (domain-specific, scoped deliverable)
+        └── domain repo: Task sub-issues (implementation steps)
+```
 
-### Dependencies
-Key Go dependencies from `go.mod`:
-- `twmb/franz-go`: Kafka client
-- `jackc/pgx/v5`: PostgreSQL driver
-- `go-chi/chi/v5`: HTTP router
-- `fiorix/go-diameter/v4`: Diameter protocol
-- `prometheus/client_golang`: Metrics collection
+## Label-Driven State Machine
 
-## Risk Areas
+Labels on Feature issues drive the automated workflow:
 
-### Complex Domain Logic
-- **Rating Engine**: Complex rule evaluation for pricing
-- **Quota Accounting**: Precise unit calculation and tax application
-- **Charge Pipeline**: Multi-step workflow with retries
+```
+[human] backlog → in-design     triggers Feature Design Session
+[agent] in-design → in-development  triggers Dev Session
+[agent] in-development → in-review  PR opened, awaits human review
+[github] PR merged → done           issue closes automatically
+```
 
-### Integration Points
-- **Kafka reliability**: Event delivery guarantees
-- **Database transactions**: Quota operations require ACID compliance
-- **Protocol compliance**: NCHF and Diameter standards
+## Organisation Structure
 
-## Configuration Structure
-YAML-based configuration with:
-- Database connection strings
-- Kafka broker addresses
-- HTTP server addresses
-- Metrics endpoints
-- Logging levels
+```
+NewOpenBSS/
+  agentic/            ← this repo — process control plane
+  charging-domain/    ← domain monorepo (Go)
+  billing-domain/     ← domain monorepo (Java/Quarkus)
+  ...
+```
 
-## Development Notes
-- Extensive test coverage (test files for all major components)
-- SQL queries managed via sqlc
-- Domain models follow 3GPP telecommunications standards (NCHF, Diameter)
-- Metrics instrumentation throughout the codebase
+## Key Design Decisions
 
-This briefing provides the foundation for understanding the codebase and performing development tasks safely. The architecture follows clean separation of concerns with business logic centrally managed in the `internal` packages.
+- Requirements live here. Features and Tasks live in domain repos.
+- GitHub Issues replace all file-based tracking artefacts.
+- The org-level GitHub Project aggregates issues from all repos.
+- Recipes live here and are referenced by reusable workflows.
+- Domain repos contain only thin caller workflows.
+- Branch naming: `feature/N-description` — auto-links to Feature issue.
+- No F-NNN numbering — GitHub issue numbers are the identifiers.
