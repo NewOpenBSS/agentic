@@ -129,6 +129,14 @@ jobs:
 
       - name: Open PR
         if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+          PR_BODY: |
+            ## Summary
+
+            Closes #${{ inputs.issue_number }}
+
+            All tasks implemented and tested. Review against acceptance criteria in the feature issue.
         run: |
           ISSUE_TITLE=$(gh issue view ${{ inputs.issue_number }} \
             --repo ${{ inputs.repository }} \
@@ -136,15 +144,6 @@ jobs:
           gh pr create \
             --repo ${{ inputs.repository }} \
             --title "feat: ${ISSUE_TITLE}" \
-            --body "$(cat <<EOF
-## Summary
-
-Closes #${{ inputs.issue_number }}
-
-All tasks implemented and tested. Review against acceptance criteria in the feature issue.
-EOF
-)" \
+            --body "${PR_BODY}" \
             --base main \
             --head ${{ steps.branch.outputs.name }}
-        env:
-          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
