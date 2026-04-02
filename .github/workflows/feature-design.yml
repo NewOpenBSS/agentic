@@ -1,0 +1,70 @@
+name: Feature Design (Stage 3)
+
+on:
+  push:
+    branches:
+      - 'feature/F-*'
+    paths:
+      - '.ai/tasks/DESIGN'
+
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch to run feature design on'
+        required: true
+
+concurrency:
+  group: feature-design-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  feature-design:
+    name: Run Feature Design
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Configure environment
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          git config user.name "goose-agent"
+          git config user.email "270002424+goose-agent@users.noreply.github.com"
+
+      - name: Run feature design recipe
+        run: |
+          goose run \
+            --recipe .goose/recipes/feature-design.yaml \
+            --params branch_name=${{ github.ref_name }}
+        env:
+          GOOSE_PATH_ROOT: ${{ github.workspace }}/.goose
+          GOOSE_PROVIDER: claude-code
+          GOOSE_MODEL: default
+          GOOSE_MODE: auto
+          GOOSE_DISABLE_SESSION_NAMING: "true"
+          HOME: /home/eddiecarpenter
+
+      - name: Push commits
+        if: success()
+        run: |
+          git push origin ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Trigger dev session
+        if: success()
+        run: |
+          gh workflow run dev-session.yml \
+            --repo ${{ github.repository }} \
+            --ref ${{ github.ref_name }} \
+            --field branch_name=${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
