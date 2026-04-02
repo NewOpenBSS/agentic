@@ -5,7 +5,7 @@ on:
       issue_number:
         description: 'Feature issue number'
         required: true
-        type: number
+        type: string
       repository:
         description: 'Domain repository'
         required: true
@@ -13,11 +13,6 @@ on:
     secrets:
       GOOSE_AGENT_PAT:
         required: true
-
-concurrency:
-  group: test-${{ inputs.repository }}-${{ inputs.issue_number }}
-  cancel-in-progress: false
-
 jobs:
   test:
     runs-on: self-hosted
