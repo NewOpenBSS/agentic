@@ -1,13 +1,20 @@
 version: "1.0.0"
-title: "Feature Design (Stage 3)"
-description: "Stage 3 — Feature Design. Analyses the Feature, decomposes into a numbered task queue, and writes queue files to the feature branch."
+title: "Feature Design Session (Phase 3)"
+description: "Phase 3 — Feature Design. Analyses the Feature issue, decomposes it into ordered Task sub-issues, creates the feature branch, and triggers the Dev Session."
 
 parameters:
-  - key: branch_name
+  - key: issue_number
     input_type: string
-    requirement: optional
-    default: ""
-    description: "Branch name (e.g. feature/F-001-charging-trace). If not provided, presents interactive list."
+    requirement: required
+    description: "Feature issue number in the domain repository"
+  - key: repository
+    input_type: string
+    requirement: required
+    description: "Domain repository in owner/repo format (e.g. NewOpenBSS/charging-domain)"
+  - key: workspace
+    input_type: string
+    requirement: required
+    description: "Absolute path to the domain repo checkout"
 
 extensions:
   - type: builtin
@@ -20,88 +27,185 @@ settings:
   max_turns: 100
 
 instructions: |
-  You are running a Feature Design session — Stage 3 of the AI development process.
-  Your job is to decompose a Feature into a numbered task queue on the feature branch.
-  The dev-session recipe will process the queue sequentially to implement the Feature.
+  You are running a Feature Design session — Phase 3 of the agentic development process.
+  Your job is to decompose a Feature issue into ordered Task sub-issues and create
+  the feature branch. The Dev Session will process the tasks to implement the Feature.
 
-  ## Step 1 — Bootstrap
-  The repo is available in the current directory (actions/checkout ran, or local).
-  Run: git fetch origin && git checkout main && git pull origin main
+  This session is non-interactive. Work through the steps below and exit cleanly.
 
-  ## Step 1.5 — Guard: verify DESIGN sentinel exists on the feature branch
-  Before doing any work, check whether the DESIGN sentinel is present:
-    git checkout {{ branch_name }} 2>/dev/null || git checkout -b {{ branch_name }} origin/{{ branch_name }}
-    ls .ai/tasks/DESIGN 2>/dev/null || { echo "No .ai/tasks/DESIGN sentinel found — nothing to do. Exiting cleanly."; git checkout main; exit 0; }
-    git checkout main
-  If DESIGN does not exist, exit immediately with a success status.
-  This prevents spurious re-runs when the workflow push triggers a second invocation.
+  ## Step 1 — Read Context
 
-  ## Step 2 — Read Context
-  Complete Session Initialisation as defined in AGENTS.md.
-  Then read .ai/memory/FEATURES.md.
+  Read the agent protocol:
+    cat agentic/AGENTS.md
 
-  ## Step 3 — Identify the Feature
-  IF branch_name is provided (automated mode):
-    Extract Feature ID from branch name: feature/F-001-name → F-001
-    Find that Feature in FEATURES.md. If not found or not "Backlog" — stop and report.
+  Read the relevant standards file for this domain:
+    cat agentic/standards/go.md     (or java.md depending on the domain)
 
-  IF branch_name NOT provided (interactive mode):
-    List all Features with Status "Backlog" and wait for human selection.
+  Read the Feature issue in full:
+    gh issue view {{ issue_number }} \
+      --repo {{ repository }} \
+      --json number,title,body,labels,subIssues
 
-  ## Step 4 — Check Implementation Approval
-  Read the Feature's "Implementation Approval Required" field.
-  If "Yes" — present the decomposition plan and wait for human confirmation.
-  If "No" — proceed automatically.
+  Read the parent Requirement issue for broader context.
+  The Requirement issue number is in the Feature body under "Requirement:".
+  Extract the agentic repo and issue number, then:
+    gh issue view <requirement-number> \
+      --repo <agentic-repo> \
+      --json number,title,body
 
-  ## Step 5 — Analyse the Codebase
-  Read relevant source files to understand what exists.
-  Identify what needs to be built, what can be reused, where new code lives.
+  ## Step 2 — Check for Existing Tasks
+
+  Query existing Task sub-issues on this Feature:
+    gh api graphql -f query='
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            subIssues(first: 20) {
+              nodes {
+                number title state
+                labels(first: 3) { nodes { name } }
+              }
+            }
+          }
+        }
+      }' \
+      -f owner=<org> -f repo=<repo-name> -F number={{ issue_number }}
+
+  If open Task sub-issues already exist — the design was already done.
+  Check if in-development label is already applied. If so, exit cleanly:
+    echo "Tasks already exist and Feature is in-development. Nothing to do."
+    exit 0
+
+  ## Step 3 — Check Implementation Approval
+
+  Read the "Implementation Approval" field from the Feature issue body.
+  If "Required":
+    - Present your proposed task breakdown to the human
+    - Wait for confirmation before proceeding
+  If "Not required":
+    - Proceed automatically
+
+  ## Step 4 — Analyse the Codebase
+
+  The domain repo is checked out at: {{ workspace }}
+
+  Navigate the codebase to understand:
+  - What already exists that is relevant to this Feature
+  - What needs to be built from scratch
+  - Where new code should live (packages, files)
+  - What the correct implementation sequence is
+  - Any risks or dependencies between tasks
+
+  Read relevant source files. Do not guess — look at the actual code.
+
+  ## Step 5 — Decompose into Tasks
+
   Determine the minimum number of tasks needed and their correct sequence.
+  Each task must be:
+  - The smallest atomic unit that can be built, tested, and committed independently
+  - Sequenced so each builds on working code from the previous task
+  - Described with enough detail for the Dev Session to implement without ambiguity
 
+  ## Step 6 — Create Task Sub-Issues
 
-  ## Step 6 — Write Task Queue to the Feature Branch
-  All tasks go on the SAME branch. The branch was created by the scoping recipe.
+  Ensure the `task` label exists in the domain repo. If not, create it:
+    gh label create "task" \
+      --repo {{ repository }} \
+      --color "E99695" \
+      --description "Implementation task — sub-issue of a feature"
 
-  a) Checkout the feature branch:
-     git checkout feature/F-NNN-<feature-name>
+  For each task, create a GitHub Issue in the domain repo:
+    gh issue create \
+      --repo {{ repository }} \
+      --title "Task <N>: <short description>" \
+      --label "task" \
+      --body "$(cat <<EOF
+  **Feature:** #{{ issue_number }}
+  **Sequence:** Task N of <total>
 
-  b) Create the queue directory:
-     mkdir -p .ai/tasks/queue
+  ## Objective
+  [What this specific task builds — one or two sentences]
 
-  c) For each task in sequence, write a numbered queue file using TASK_TEMPLATE.md:
-     .ai/tasks/queue/001-<task-name>.md
-     .ai/tasks/queue/002-<task-name>.md
-     etc.
+  ## Scope
+  **In scope:** [what this task delivers]
+  **Out of scope:** [what is deferred to later tasks]
 
-     Each queue file must include:
-     - Sequence number and task title
-     - Objective: what this specific task builds
-     - Scope: in and out of scope for this task only
-     - Context: relevant existing code references
-     - Acceptance criteria: outcome criteria for this task
-     - Risk assessment: risks to critical business logic
-     - Feature ID this task belongs to
+  ## Context
+  [Relevant existing code — file paths, function names, patterns to follow]
 
-     Tasks must be sequenced so each builds on working code from the previous.
-     The smallest atomic unit that can be built, tested, and committed independently.
+  ## Acceptance Criteria
+  - [ ] [outcome criterion]
+  - [ ] [outcome criterion]
 
-  d) Remove the DESIGN sentinel, write READY, stage queue files, and commit (do NOT push — the workflow pushes):
-     git rm .ai/tasks/DESIGN
-     echo "Feature: F-NNN\nTasks: <count>\nCreated: $(date -u +%Y-%m-%d)" > .ai/tasks/READY
-     git add .ai/tasks/queue/ .ai/tasks/READY
-     git add .ai/memory/FEATURES.md
-     git commit -m "design: F-NNN task queue ready ([count] tasks)"
-     (do NOT run git push here — the GitHub Actions workflow pushes after this recipe exits)
+  ## Risk
+  [Any risks to existing behaviour or critical logic — or "None"]
+  EOF
+  )"
 
-  e) Return to main:
-     git checkout main
+  After creating each Task issue, immediately wire it as a sub-issue of the Feature:
+    FEATURE_NODE_ID=$(gh api /repos/{{ repository }}/issues/{{ issue_number }} --jq '.node_id')
+    TASK_NODE_ID=$(gh api /repos/{{ repository }}/issues/<task-number> --jq '.node_id')
 
-  ## Step 7 — Report Completion
-  List the queue files created with a one-line description of each task.
-  State the total number of tasks and their sequence.
-  Confirm: "Task queue written. Dev Session will trigger automatically."
+    gh api graphql -f query="
+      mutation {
+        addSubIssue(input: {
+          issueId: \"$FEATURE_NODE_ID\"
+          subIssueId: \"$TASK_NODE_ID\"
+        }) {
+          issue { number }
+          subIssue { number }
+        }
+      }"
+
+  ## Step 7 — Create the Feature Branch
+
+  Derive the branch name from the Feature issue number and title.
+  Slugify the title: lowercase, spaces to hyphens, remove special characters.
+  Branch name format: feature/<issue-number>-<slugified-title>
+  Example: feature/1-permission-enforcement-framework
+
+  Get the main branch SHA and the repo node ID, then create via GitHub API:
+    REPO_NODE_ID=$(gh api /repos/{{ repository }} --jq '.node_id')
+    FEATURE_NODE_ID=$(gh api /repos/{{ repository }}/issues/{{ issue_number }} --jq '.node_id')
+    MAIN_SHA=$(gh api /repos/{{ repository }}/branches/main --jq '.commit.sha')
+
+    gh api graphql -f query="
+      mutation {
+        createLinkedBranch(input: {
+          issueId: \"$FEATURE_NODE_ID\"
+          repositoryId: \"$REPO_NODE_ID\"
+          name: \"feature/{{ issue_number }}-<slugified-title>\"
+          oid: \"$MAIN_SHA\"
+        }) {
+          linkedBranch {
+            ref { name }
+          }
+        }
+      }"
+
+  This creates the branch on GitHub AND links it to the Feature issue in one step.
+  No local git push is needed.
+
+  ## Step 8 — Trigger the Dev Session
+
+  Apply the `in-development` label on the Feature issue.
+  This triggers the Dev Session workflow automatically.
+
+    gh issue edit {{ issue_number }} \
+      --repo {{ repository }} \
+      --remove-label "in-design" \
+      --add-label "in-development"
+
+  ## Step 9 — Report and Exit
+
+  List the Task issues created with issue numbers, URLs, and one-line descriptions.
+  State the branch name created.
+  Confirm: "Feature #{{ issue_number }} decomposed into <N> tasks.
+  Branch feature/<N>-<name> created. Dev Session will start automatically."
+
+  Exit cleanly. Do not push files. Do not open a PR.
+  The workflow has nothing further to do after this recipe exits.
 
 prompt: |
-  Starting Feature Design session for branch: {{ branch_name }}.
-  Read the context files, identify the Feature from FEATURES.md,
-  analyse the codebase, write the task queue, and push to the branch.
+  Starting Feature Design session for issue #{{ issue_number }} in {{ repository }}.
+  Reading context, analysing codebase, and decomposing into tasks.
