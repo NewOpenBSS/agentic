@@ -1,0 +1,28 @@
+name: Test Reusable Structured
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Feature issue number'
+        required: true
+        type: number
+      repository:
+        description: 'Domain repository'
+        required: true
+        type: string
+    secrets:
+      GOOSE_AGENT_PAT:
+        required: true
+
+concurrency:
+  group: test-${{ inputs.repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - run: echo "issue=${{ inputs.issue_number }} repo=${{ inputs.repository }}"
