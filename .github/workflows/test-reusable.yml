@@ -10,9 +10,6 @@ on:
         description: 'Domain repository'
         required: true
         type: string
-    secrets:
-      GOOSE_AGENT_PAT:
-        required: true
 jobs:
   test:
     runs-on: self-hosted
