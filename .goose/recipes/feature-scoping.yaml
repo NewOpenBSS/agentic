@@ -84,11 +84,13 @@ instructions: |
      List the domain repos in the org if helpful:
        gh repo list <org> --json name,description --limit 20
 
-  ## The Eight Artefacts (work through these in order)
+  ## The Five Artefacts (work through these in order)
 
   ### Artefact 1 — User Story
 
-  This is the foundation. Everything else flows from it.
+  This is the foundation. Everything else flows from it. A well-formed story
+  replaces the need to separately elicit the raw idea, problem statement, and
+  feature definition — all three are implicit in a good story.
 
   Ask: "Who is the primary actor — the person or system that directly uses
   or benefits from this feature?"
@@ -113,49 +115,35 @@ instructions: |
   - If there are two distinct actors with different needs — they are two
     stories. Decide which to scope now and park the other.
 
-  Only proceed when the human confirms: "Yes, that captures it."
-
-  ### Artefact 2 — Raw Idea
-  Restate the requirement in one sentence. Ask: "Is that a fair summary?"
-
-  ### Artefact 3 — Problem Statement
-  Ask: "What is broken, missing, or painful — and who experiences it?"
-  Do not accept a solution as the answer.
-
-  ### Artefact 4 — Feature Definition
-  Ask: "What capability, when delivered, resolves this problem?"
-  Goal must be a single sentence. If it contains "and" — it is two Features.
-  Give the Feature a working title for the conversation.
+  Also derive a working Feature title from the story for use in the conversation.
   The issue number will be assigned by GitHub on creation.
 
-  ### Artefact 5 — MVP Scope
+  Only proceed when the human confirms: "Yes, that captures it."
+
+  ### Artefact 2 — MVP Scope
   Ask: "What is the minimum version that delivers real value?"
   Challenge: "If we removed X, would the core problem still be solved?"
 
-  ### Artefact 6 — Acceptance Criteria + Constraints
+  ### Artefact 3 — Acceptance Criteria + Constraints
   Ask: "How will we know the implementation is correct?"
   Apply solution bias test to every criterion. Convert solution criteria to
   outcome criteria. If human insists on a how — record as a constraint.
 
-  ### Artefact 6b — Feature Switch
+  ### Artefact 4 — Feature Switch
   For every Feature that changes user-visible behaviour, ask:
   "Does this feature need to be hidden behind a feature switch?"
   Record the switch name (lowercase_underscore) or "None".
   If switch infrastructure does not exist — flag as a prerequisite.
 
-  ### Artefact 6c — Implementation Approval
+  ### Artefact 5 — Implementation Approval
   Ask: "Should implementation proceed automatically after design,
   or do you want to review the task breakdown first?"
   - Yes, review first → note "Implementation Approval Required" in the issue
-  - No, proceed automatically → note "Proceed automatically" in the issue
+  - No, proceed automatically → note "Not required — proceed automatically"
 
-  ### Artefact 7 — Parking Lot
-  Capture out-of-scope ideas throughout. Review at end:
-  "Should any of these become the next Feature?"
-
-  ### Artefact 8 — Feature Issue
-  Synthesise all artefacts into the issue body below.
-  Present for human approval before creating.
+  Throughout all artefacts, maintain a **Parking Lot** — capture out-of-scope
+  ideas as they arise. Review at the end: "Should any of these become the
+  next Feature?"
 
   ## The Three-Question Checkpoint
   1. "Does the story name a real actor and a concrete outcome (not a solution)?"
@@ -174,12 +162,6 @@ instructions: |
   As a [actor], I want [capability], so that [benefit].
 
   **Requirement:** <agentic-repo>#<requirement-number>
-
-  ## Goal
-  [One sentence — what this builds and why]
-
-  ## Problem Statement
-  [What is broken or missing. Who is affected.]
 
   ## MVP
   [The smallest version that delivers real value]
