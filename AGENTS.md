@@ -10,9 +10,16 @@ It is language-agnostic and reusable across projects.
 At the start of every session, read these sources in order before doing anything else:
 
 1. `docs/PROJECT_BRIEF.md` — what the agentic system is and how it works
-2. Read `DOMAINS.md`. For each domain with status `active`, check whether `domains/<name>/`
-   exists locally. If any are missing, list them and ask the user whether to clone them
-   before proceeding. Clone command: `git clone <repo> domains/<name>`
+2. Read `REPOS.md`. For each repo with status `active`, derive its local directory as
+   `<type>s/<name>` (e.g. `type: domain` → `domains/<name>`, `type: tool` → `tools/<name>`).
+   For each unique type, ensure the type folder (`<type>s/`) exists — if not:
+   a. Create the folder with a `.gitkeep` file
+   b. Stage it: `git add <type>s/.gitkeep`
+   c. Add `<type>s/*/` to `.gitignore` and stage that too: `git add .gitignore`
+   d. Commit both: `chore: bootstrap <type>s/ directory`
+   Check whether each `<type>s/<name>` directory exists locally. If any repos are
+   missing, list them and ask the user whether to clone them before proceeding.
+   Clone command: `git clone <repo> <type>s/<name>`
 3. Query open Requirement issues in the agentic repo:
    `gh issue list --repo <agentic-repo> --label requirement --state open --json number,title,labels`
 4. For domain sessions — query open Feature issues in the domain repo:
