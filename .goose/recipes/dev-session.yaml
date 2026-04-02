@@ -1,12 +1,24 @@
 version: "1.0.0"
-title: "Dev Session (Stage 4)"
-description: "Stage 4 — Development. Processes the task queue sequentially on the feature branch. Commits each task. Workflow handles push and PR."
+title: "Dev Session (Phase 4)"
+description: "Phase 4 — Development. Processes Task sub-issues sequentially on the feature branch. Commits and closes each task. Workflow handles push and PR."
 
 parameters:
+  - key: issue_number
+    input_type: string
+    requirement: required
+    description: "Feature issue number in the domain repository"
   - key: branch_name
     input_type: string
     requirement: required
-    description: "Feature branch to implement (e.g. feature/F-001-charging-trace)"
+    description: "Feature branch to implement (e.g. feature/1-permission-enforcement-framework)"
+  - key: repository
+    input_type: string
+    requirement: required
+    description: "Domain repository in owner/repo format (e.g. NewOpenBSS/charging-domain)"
+  - key: workspace
+    input_type: string
+    requirement: required
+    description: "Absolute path to the domain repo checkout"
 
 extensions:
   - type: builtin
@@ -19,58 +31,129 @@ settings:
   max_turns: 200
 
 instructions: |
-  You are running a Dev Session — Stage 4 of the agentic development pipeline.
-  You process the task queue on the feature branch, implementing each task
-  in sequence. You commit after each task. You do NOT push or open a PR —
-  the GitHub Actions workflow handles those steps after you exit cleanly.
+  You are running a Dev Session — Phase 4 of the agentic development pipeline.
+  You process Task sub-issues on the feature branch, implementing each task
+  in sequence. You commit and close each task issue after completing it.
+  You do NOT push or open a PR — the workflow handles those steps after you exit.
 
   ## Step 1 — Verify Branch
-  git branch --show-current
+
+  The domain repo is checked out at: {{ workspace }}
+
+  Verify you are on the correct branch:
+    cd {{ workspace }}
+    git branch --show-current
+
   If not on {{ branch_name }}:
     git checkout {{ branch_name }} 2>/dev/null || \
     git checkout -b {{ branch_name }} origin/{{ branch_name }}
 
   ## Step 2 — Read Context
-  Complete Session Initialisation as defined in AGENTS.md.
-  Then verify:
-  - .ai/tasks/READY exists — if not, stop and report
-  - .ai/tasks/queue/ contains files — if empty, stop and report
 
-  ## Step 3 — Process the Task Queue
-  List all files in .ai/tasks/queue/ sorted numerically (001 before 002).
-  This is the implementation sequence. Do not change the order.
+  Read the agent protocol:
+    cat agentic/AGENTS.md
 
-  For EACH task file in sequence:
+  Read the relevant standards file for this domain:
+    cat agentic/standards/go.md     (or java.md depending on the domain)
 
-  ### 3a — Read the task
-  Read the task file. Understand what must be built before touching any code.
+  Read the Feature issue in full:
+    gh issue view {{ issue_number }} \
+      --repo {{ repository }} \
+      --json number,title,body,labels
 
-  ### 3b — Implement
+  ## Step 3 — Query Open Task Sub-Issues
+
+  Fetch all open Task sub-issues on the Feature, ordered by issue number:
+    gh api graphql -f query='
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            subIssues(first: 50) {
+              nodes {
+                number
+                title
+                state
+                body
+                labels(first: 3) { nodes { name } }
+              }
+            }
+          }
+        }
+      }' \
+      -f owner=<org> -f repo=<repo-name> -F number={{ issue_number }} \
+      --jq '[.data.repository.issue.subIssues.nodes[] | select(.state == "OPEN" and (.labels.nodes[].name == "task"))] | sort_by(.number)'
+
+  If no open Task sub-issues are found:
+  - If all sub-issues are closed → all tasks complete, go to Step 5
+  - If no sub-issues exist at all → stop and report: "No tasks found for feature #{{ issue_number }}"
+
+  This is the implementation sequence. Process them in ascending issue number order.
+  Closed tasks are already done — skip them. This makes retries safe.
+
+  ## Step 4 — Process Each Task
+
+  For EACH open Task issue in ascending order:
+
+  ### 4a — Read the Task
+  Read the task issue body in full.
+  Understand what must be built before touching any code.
+  Note the acceptance criteria — these are the definition of done for this task.
+
+  ### 4b — Implement
   Implement the task against its acceptance criteria.
-  Stage new files immediately after creating them: git add <file>
+  Work in {{ workspace }}.
+  Stage new files immediately after creating them:
+    cd {{ workspace }} && git add <file>
   Do not make changes outside the task scope.
+  Do not make changes outside {{ workspace }}.
 
+  ### 4c — Build and Test
+  Run the full build and test suite from {{ workspace }}.
+  Follow the build and test commands in the standards file for this domain.
 
-  ### 3c — Build and test
-  Run the full build and test suite.
-  If build fails — diagnose and fix. Do not move to the next task with a broken build.
-  If tests fail — diagnose and fix. Do not move to the next task with failing tests.
+  If build fails — diagnose and fix before proceeding.
+  If tests fail — diagnose and fix before proceeding.
+  Do not move to the next task with a broken build or failing tests.
   If you cannot fix the failure — stop and exit with a clear error message.
-  The workflow will turn red. A human will investigate and re-trigger.
+  The workflow will turn red. A human will investigate and re-apply
+  the in-development label to re-trigger this session.
 
-  ### 3d — Commit the task
-  Follow the "After each task completes" steps in AGENTS.md (Memory and Task Lifecycle).
-  Proceed to the next task in the queue.
+  ### 4d — Commit
+  Commit the work from {{ workspace }}:
+    cd {{ workspace }}
+    git add -A
+    git commit -m "feat: <task description> — task N of <total> (#{{ issue_number }})"
 
-  ## Step 4 — All Tasks Complete
-  When the queue is empty, follow the "When all tasks are complete" steps in AGENTS.md.
-  Exit cleanly with a success message listing what was built.
-  The workflow will now push and open the PR.
+  ### 4e — Close the Task Issue
+  Close the Task issue to mark it complete:
+    gh issue close <task-number> \
+      --repo {{ repository }} \
+      --comment "Implemented and committed. See feature branch for changes."
+
+  Proceed to the next open Task issue.
+
+  ## Step 5 — All Tasks Complete
+
+  When all Task sub-issues are closed:
+  1. Append any significant decisions to DECISIONS.md in {{ workspace }}
+     following the ADR format in AGENTS.md (if applicable)
+  2. Exit cleanly with a success message:
+     "Feature #{{ issue_number }} — all <N> tasks implemented and committed.
+      Branch {{ branch_name }} is ready for review.
+      Workflow will push and open the PR."
+
+  Do NOT push. Do NOT open a PR. Do NOT apply any labels.
+  The workflow handles push, PR creation, and the in-review label.
 
   ## Rules
-  - If build or tests cannot be fixed — stop and exit with a clear error.
-    The workflow will turn red. A human will investigate and re-trigger.
+
+  - Never commit directly to main
+  - Never push from within this recipe
+  - Never open a PR from within this recipe
+  - If build or tests cannot be fixed — stop and exit with a clear error
+  - Do not make changes outside the scope of the current task
+  - Do not make changes outside {{ workspace }}
 
 prompt: |
-  Dev session starting for {{ branch_name }}.
-  Verifying branch, reading context, then processing the task queue.
+  Dev session starting for feature #{{ issue_number }} on {{ branch_name }}.
+  Verifying branch, reading context, then processing open task sub-issues.
