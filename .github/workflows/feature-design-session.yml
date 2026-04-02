@@ -1,0 +1,73 @@
+name: Feature Design Session
+
+# Reusable workflow — called by domain repo dispatch workflows.
+# Triggered when a feature issue is labelled in-design.
+# Reads the feature issue spec, decomposes it into task sub-issues,
+# creates the feature branch, and applies in-development to trigger the dev session.
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Feature issue number in the calling domain repository'
+        required: true
+        type: number
+      repository:
+        description: 'Calling domain repository (owner/repo)'
+        required: true
+        type: string
+    secrets:
+      GOOSE_AGENT_PAT:
+        required: true
+
+concurrency:
+  group: feature-design-${{ inputs.repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  feature-design:
+    name: Run Feature Design Session
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout agentic (recipes)
+        uses: actions/checkout@v4
+        with:
+          repository: NewOpenBSS/agentic
+          ref: main
+          path: agentic
+          token: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Checkout domain repo (codebase)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: main
+          path: domain
+          fetch-depth: 0
+          token: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Configure git
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          git -C domain config user.name "goose-agent"
+          git -C domain config user.email "270002424+goose-agent@users.noreply.github.com"
+
+      - name: Run feature design recipe
+        run: |
+          goose run \
+            --recipe ${{ github.workspace }}/agentic/.goose/recipes/feature-design.yaml \
+            --params issue_number=${{ inputs.issue_number }} \
+            --params repository=${{ inputs.repository }} \
+            --params workspace=${{ github.workspace }}/domain
+        env:
+          GOOSE_PATH_ROOT: ${{ github.workspace }}/agentic/.goose
+          GOOSE_PROVIDER: claude-code
+          GOOSE_MODEL: default
+          GOOSE_MODE: auto
+          GOOSE_DISABLE_SESSION_NAMING: "true"
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+          HOME: /home/eddiecarpenter

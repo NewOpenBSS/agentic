@@ -1,0 +1,122 @@
+name: Dev Session
+
+# Reusable workflow — called by domain repo dispatch workflows.
+# Triggered when a feature issue is labelled in-development.
+# Reads open task sub-issues in order, implements each, commits, and closes
+# the task issue. When all tasks are done opens a PR and applies in-review.
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Feature issue number in the calling domain repository'
+        required: true
+        type: number
+      branch_name:
+        description: 'Feature branch name (feature/N-description)'
+        required: true
+        type: string
+      repository:
+        description: 'Calling domain repository (owner/repo)'
+        required: true
+        type: string
+    secrets:
+      GOOSE_AGENT_PAT:
+        required: true
+
+concurrency:
+  group: dev-session-${{ inputs.repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  dev-session:
+    name: Run Dev Session
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout agentic (recipes)
+        uses: actions/checkout@v4
+        with:
+          repository: NewOpenBSS/agentic
+          ref: main
+          path: agentic
+          token: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Checkout domain repo feature branch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.branch_name }}
+          path: domain
+          fetch-depth: 0
+          token: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Configure git
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          git -C domain config user.name "goose-agent"
+          git -C domain config user.email "270002424+goose-agent@users.noreply.github.com"
+
+      - name: Run dev session recipe
+        id: goose
+        run: |
+          # Retry up to 3 times to handle transient rate-limit errors.
+          # Each retry picks up from the last closed task issue.
+          for attempt in 1 2 3; do
+            echo "--- Dev session attempt ${attempt} ---"
+            goose run \
+              --recipe ${{ github.workspace }}/agentic/.goose/recipes/dev-session.yaml \
+              --params issue_number=${{ inputs.issue_number }} \
+              --params branch_name=${{ inputs.branch_name }} \
+              --params repository=${{ inputs.repository }} \
+              --params workspace=${{ github.workspace }}/domain && break
+            EXIT_CODE=$?
+            if [ $attempt -lt 3 ]; then
+              echo "Attempt ${attempt} failed (exit ${EXIT_CODE}). Waiting 60s before retry..."
+              sleep 60
+            else
+              echo "All attempts failed."
+              exit $EXIT_CODE
+            fi
+          done
+        env:
+          GOOSE_PATH_ROOT: ${{ github.workspace }}/agentic/.goose
+          GOOSE_PROVIDER: claude-code
+          GOOSE_MODEL: default
+          GOOSE_MODE: auto
+          GOOSE_DISABLE_SESSION_NAMING: "true"
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+          HOME: /home/eddiecarpenter
+
+      - name: Push commits
+        if: success()
+        run: |
+          git -C domain push origin ${{ inputs.branch_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+
+      - name: Open PR
+        if: success()
+        run: |
+          ISSUE_TITLE=$(gh issue view ${{ inputs.issue_number }} \
+            --repo ${{ inputs.repository }} \
+            --json title --jq '.title')
+          gh pr create \
+            --repo ${{ inputs.repository }} \
+            --title "feat: ${ISSUE_TITLE}" \
+            --body "$(cat <<EOF
+## Summary
+
+Closes #${{ inputs.issue_number }}
+
+All tasks implemented and tested. Review against acceptance criteria in the feature issue.
+EOF
+)" \
+            --base main \
+            --head ${{ inputs.branch_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
