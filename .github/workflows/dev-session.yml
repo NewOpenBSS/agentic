@@ -2,8 +2,9 @@ name: Dev Session
 
 # Reusable workflow — called by domain repo dispatch workflows.
 # Triggered when a feature issue is labelled in-development.
-# Reads open task sub-issues in order, implements each, commits, and closes
-# the task issue. When all tasks are done opens a PR and applies in-review.
+# Resolves the linked feature branch, reads open task sub-issues in order,
+# implements each, commits, and closes the task issue.
+# When all tasks are done, pushes commits, opens a PR, and applies in-review.
 
 on:
   workflow_call:
@@ -12,10 +13,6 @@ on:
         description: 'Feature issue number in the calling domain repository'
         required: true
         type: number
-      branch_name:
-        description: 'Feature branch name (feature/N-description)'
-        required: true
-        type: string
       repository:
         description: 'Calling domain repository (owner/repo)'
         required: true
@@ -38,6 +35,37 @@ jobs:
       issues: write
 
     steps:
+      - name: Resolve linked branch
+        id: branch
+        run: |
+          OWNER=$(echo "${{ inputs.repository }}" | cut -d/ -f1)
+          REPO=$(echo "${{ inputs.repository }}" | cut -d/ -f2)
+
+          BRANCH=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $number) {
+                  linkedBranches(first: 1) {
+                    nodes { ref { name } }
+                  }
+                }
+              }
+            }' \
+            -f owner="$OWNER" \
+            -f repo="$REPO" \
+            -F number=${{ inputs.issue_number }} \
+            --jq '.data.repository.issue.linkedBranches.nodes[0].ref.name')
+
+          if [ -z "$BRANCH" ] || [ "$BRANCH" = "null" ]; then
+            echo "No linked branch found for issue #${{ inputs.issue_number }}"
+            exit 1
+          fi
+
+          echo "name=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "Linked branch: ${BRANCH}"
+        env:
+          GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
+
       - name: Checkout agentic (recipes)
         uses: actions/checkout@v4
         with:
@@ -50,7 +78,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.branch_name }}
+          ref: ${{ steps.branch.outputs.name }}
           path: domain
           fetch-depth: 0
           token: ${{ secrets.GOOSE_AGENT_PAT }}
@@ -71,7 +99,7 @@ jobs:
             goose run \
               --recipe ${{ github.workspace }}/agentic/.goose/recipes/dev-session.yaml \
               --params issue_number=${{ inputs.issue_number }} \
-              --params branch_name=${{ inputs.branch_name }} \
+              --params branch_name=${{ steps.branch.outputs.name }} \
               --params repository=${{ inputs.repository }} \
               --params workspace=${{ github.workspace }}/domain && break
             EXIT_CODE=$?
@@ -95,7 +123,7 @@ jobs:
       - name: Push commits
         if: success()
         run: |
-          git -C domain push origin ${{ inputs.branch_name }}
+          git -C domain push origin ${{ steps.branch.outputs.name }}
         env:
           GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
 
@@ -117,6 +145,6 @@ All tasks implemented and tested. Review against acceptance criteria in the feat
 EOF
 )" \
             --base main \
-            --head ${{ inputs.branch_name }}
+            --head ${{ steps.branch.outputs.name }}
         env:
           GH_TOKEN: ${{ secrets.GOOSE_AGENT_PAT }}
