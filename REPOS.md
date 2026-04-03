@@ -18,6 +18,16 @@ must be reflected in `docs/ARCHITECTURE.md`.
 
 ---
 
+## ocs-testbench
+
+- **Repo:** git@github.com:NewOpenBSS/ocs-testbench.git
+- **Stack:** Go
+- **Type:** tool
+- **Status:** active
+- **Description:** OCS test bench for injecting Diameter charge requests (data, voice, SMS, USSD) against any Diameter endpoint, primarily for testing charging-domain
+
+---
+
 ## charging-domain
 
 - **Repo:** git@github.com:NewOpenBSS/charging-domain.git
